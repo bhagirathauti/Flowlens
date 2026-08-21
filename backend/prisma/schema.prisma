@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
 model User {
@@ -24,10 +24,42 @@ enum Role {
 }
 
 model Warehouse {
-  id        String   @id @default(uuid())
+  id        String          @id @default(uuid())
   name      String
   location  String
   capacity  Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive  Boolean         @default(true)
+  status    WarehouseStatus @default(ACTIVE)
+  zones     WarehouseZone[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 }
+
+enum WarehouseStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum ZoneType {
+  RECEIVING
+  PICKING
+  PACKING
+  QUALITY_CHECK
+  DISPATCH
+  STORAGE
+}
+
+model WarehouseZone {
+  id          String    @id @default(uuid())
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  name        String
+  code        String
+  type        ZoneType  @default(STORAGE)
+  capacity    Int       @default(100)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+

@@ -1,10 +1,19 @@
 import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
+import { PrismaLibSql } from '@prisma/adapter-libsql';
+import { createClient } from '@libsql/client';
+import path from 'path';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL as string });
-const adapter = new PrismaPg(pool);
+let dbUrl = process.env.DATABASE_URL || 'file:./dev.db';
+if (dbUrl.startsWith('file:')) {
+  const rawPath = dbUrl.replace(/^file:\/*/, '');
+  const absPath = path.resolve(process.cwd(), rawPath).replace(/\\/g, '/');
+  dbUrl = `file:${absPath}`;
+}
+
+const adapter = new PrismaLibSql({ url: dbUrl });
 export const prisma = new PrismaClient({ adapter });
+
+
