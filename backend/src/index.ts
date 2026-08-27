@@ -3,15 +3,22 @@ import cors from 'cors';
 import authRoutes from './routes/auth.js';
 import warehouseRoutes from './routes/warehouses.js';
 import { prisma } from './db.js';
+import orderRoutes from './routes/orderRoutes.js';
 
 const app = express();
 
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+app.use(
+  cors({
+    origin: true, // Dynamically reflects the requesting origin (e.g., http://localhost:3000)
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
+app.use('/api/orders', orderRoutes);
 app.use('/api/warehouses', warehouseRoutes);
 
 app.get('/api/health', (req, res) => {
