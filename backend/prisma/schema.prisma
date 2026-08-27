@@ -62,4 +62,40 @@ model WarehouseZone {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
+enum Stage {
+  ORDER_RECEIVED
+  PICKING
+  PACKING
+  QUALITY_CHECK
+  DISPATCH
+  DELIVERY
+}
 
+enum SLAStatus {
+  ON_TIME
+  AT_RISK
+  BREACHED
+}
+
+model Order {
+  id               String      @id @default(uuid())
+  customerId       String
+  warehouse        String
+  assignedEmployee String
+  currentStage     Stage       @default(ORDER_RECEIVED)
+  stageTimestamp   DateTime    @default(now())
+  processingTime   Int         @default(0)
+  slaStatus        SLAStatus   @default(ON_TIME)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  history          StageLogs[]
+}
+
+model StageLogs {
+  id             String   @id @default(uuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id])
+  stage          Stage
+  changedAt      DateTime @default(now())
+  processingTime Int
+}
