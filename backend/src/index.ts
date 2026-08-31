@@ -5,6 +5,9 @@ import warehouseRoutes from './routes/warehouses.js';
 import { prisma } from './db.js';
 import orderRoutes from './routes/orderRoutes.js';
 import workflowRoutes from './routes/workflowRoutes.js';
+import complaintRoutes from './routes/complaintRoutes.js';
+import rcaRoutes from './routes/rcaRoutes.js';
+import riskRoutes from './routes/riskRoutes.js';
 
 const app = express();
 
@@ -22,6 +25,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/warehouses', warehouseRoutes);
 app.use('/api/workflow', workflowRoutes);
+app.use('/api/complaints', complaintRoutes);
+app.use('/api/rca', rcaRoutes);
+app.use('/api/risk', riskRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Flowlens API is running' });

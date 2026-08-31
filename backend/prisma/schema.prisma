@@ -62,6 +62,7 @@ model WarehouseZone {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
+
 enum Stage {
   ORDER_RECEIVED
   PICKING
@@ -77,25 +78,62 @@ enum SLAStatus {
   BREACHED
 }
 
+enum ComplaintType {
+  WRONG_ITEM
+  MISSING_ITEM
+  DAMAGED_ITEM
+  LATE_DELIVERY
+}
+
+enum ComplaintStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+}
+
+enum ComplaintSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
 model Order {
-  id               String      @id @default(uuid())
+  id               String       @id @default(uuid())
   customerId       String
   warehouse        String
   assignedEmployee String
-  currentStage     Stage       @default(ORDER_RECEIVED)
-  stageTimestamp   DateTime    @default(now())
-  processingTime   Int         @default(0)
-  slaStatus        SLAStatus   @default(ON_TIME)
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  currentStage     Stage        @default(ORDER_RECEIVED)
+  stageTimestamp   DateTime     @default(now())
+  processingTime   Int          @default(0)
+  slaStatus        SLAStatus    @default(ON_TIME)
+  riskScore        Int          @default(0)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
   history          StageLogs[]
+  complaints       Complaint[]
 }
 
 model StageLogs {
   id             String   @id @default(uuid())
   orderId        String
-  order          Order    @relation(fields: [orderId], references: [id])
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   stage          Stage
   changedAt      DateTime @default(now())
   processingTime Int
+}
+
+model Complaint {
+  id                String            @id @default(uuid())
+  orderId           String
+  order             Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  complaintType     ComplaintType
+  warehouse         String
+  deliveryExecutive String?
+  rootCause         String?
+  status            ComplaintStatus   @default(OPEN)
+  severity          ComplaintSeverity @default(MEDIUM)
+  notes             String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 }
