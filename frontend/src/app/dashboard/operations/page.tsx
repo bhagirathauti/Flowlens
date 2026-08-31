@@ -418,7 +418,7 @@ export default function OperationsDashboard() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
                 gap: '1rem',
               }}
             >
@@ -558,6 +558,42 @@ export default function OperationsDashboard() {
                 </table>
               </div>
             )}
+          </div>
+
+          {/* Employee Workload Section */}
+          <div>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1E293B', marginBottom: '1rem' }}>
+              Employee Handling & Active Workload Distribution
+            </h3>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                gap: '1rem',
+              }}
+            >
+              {metrics.employeeWorkloads.map((emp) => (
+                <div
+                  key={emp.employeeName}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '10px',
+                    padding: '1rem',
+                  }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0F172A' }}>👤 {emp.employeeName}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748B' }}>Active Assignments:</span>
+                    <strong style={{ color: '#2563EB' }}>{emp.activeOrders} orders</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#64748B' }}>Total Processed:</span>
+                    <strong style={{ color: '#0F172A' }}>{emp.totalProcessed} orders</strong>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       ) : null}

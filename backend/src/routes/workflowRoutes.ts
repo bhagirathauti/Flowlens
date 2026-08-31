@@ -14,11 +14,15 @@ router.get('/metrics', async (req, res) => {
       whereFilter.warehouse = warehouse;
     }
 
+    // 1. Fetch all orders with history logs
     const orders = await prisma.order.findMany({
       where: whereFilter,
-      include: { history: true },
+      include: {
+        history: true,
+      },
     });
 
+    // 2. Compute Queue Lengths per stage
     const queueLengths: Record<string, number> = {
       ORDER_RECEIVED: 0,
       PICKING: 0,
@@ -28,15 +32,28 @@ router.get('/metrics', async (req, res) => {
       DELIVERY: 0,
     };
 
+    // 3. Compute Employee Workloads
     const employeeWorkloads: Record<string, { employeeName: string; activeOrders: number; totalProcessed: number }> = {};
-    const delayedOrders: Array<any> = [];
+
+    // 4. Track Delays (Breached or At-Risk orders)
+    const delayedOrders: Array<{
+      id: string;
+      customerId: string;
+      warehouse: string;
+      stage: string;
+      assignedEmployee: string;
+      processingTime: number;
+      slaStatus: string;
+    }> = [];
 
     orders.forEach((order) => {
+      // Increment queue length for active stage
       const currentQueue = queueLengths[order.currentStage];
       if (currentQueue !== undefined) {
         queueLengths[order.currentStage] = currentQueue + 1;
       }
 
+      // Track workload
       if (order.assignedEmployee) {
         let emp = employeeWorkloads[order.assignedEmployee];
         if (!emp) {
@@ -53,6 +70,7 @@ router.get('/metrics', async (req, res) => {
         emp.totalProcessed += 1;
       }
 
+      // Track delays (SLA Breach or Processing Time > 15 mins)
       if (order.slaStatus === SLAStatus.BREACHED || order.slaStatus === SLAStatus.AT_RISK || order.processingTime > 15) {
         delayedOrders.push({
           id: order.id,
@@ -66,7 +84,9 @@ router.get('/metrics', async (req, res) => {
       }
     });
 
+    // 5. Fetch StageLogs for Average Stage Processing Times
     const stageLogs = await prisma.stageLogs.findMany();
+
     const stageTimesSum: Record<string, { totalTime: number; count: number }> = {
       ORDER_RECEIVED: { totalTime: 0, count: 0 },
       PICKING: { totalTime: 0, count: 0 },

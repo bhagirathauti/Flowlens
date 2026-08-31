@@ -2,7 +2,7 @@ import express from 'express';
 import { prisma } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { requireRole } from '../middleware/role.js';
-import { WarehouseStatus } from '@prisma/client';
+import { WarehouseStatus, ZoneType, Role } from '@prisma/client';
 
 const router = express.Router();
 
@@ -13,7 +13,7 @@ router.get('/', async (req, res) => {
 
     const whereClause: any = {};
 
-    if (status && Object.values(WarehouseStatus).includes(status as WarehouseStatus)) {
+    if (status && (Object.values(WarehouseStatus) as string[]).includes(String(status))) {
       whereClause.status = status as WarehouseStatus;
     }
 
@@ -44,10 +44,10 @@ router.get('/', async (req, res) => {
 // GET /api/warehouses/:id - Get detailed warehouse information by ID
 router.get('/:id', async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     const warehouse = await prisma.warehouse.findUnique({
-      where: { id },
+      where: { id: id as string },
       include: {
         zones: {
           orderBy: {
@@ -58,7 +58,8 @@ router.get('/:id', async (req, res) => {
     });
 
     if (!warehouse) {
-      return res.status(404).json({ error: 'Warehouse not found' });
+      res.status(404).json({ error: 'Warehouse not found' });
+      return;
     }
 
     res.json({ warehouse });
@@ -72,33 +73,35 @@ router.get('/:id', async (req, res) => {
 router.post(
   '/',
   authenticateToken,
-  requireRole(['ADMIN', 'OPERATIONS_MANAGER']),
+  requireRole([Role.ADMIN, Role.OPERATIONS_MANAGER]),
   async (req, res) => {
     try {
       const { name, location, capacity, status, isActive } = req.body;
 
       if (!name || !location || capacity === undefined) {
-        return res
+        res
           .status(400)
           .json({ error: 'Name, location, and operational capacity are required' });
+        return;
       }
 
       const parsedCapacity = Number(capacity);
       if (isNaN(parsedCapacity) || parsedCapacity < 0) {
-        return res
+        res
           .status(400)
           .json({ error: 'Operational capacity must be a non-negative number' });
+        return;
       }
 
       const warehouseStatus =
-        status && Object.values(WarehouseStatus).includes(status)
-          ? status
+        status && (Object.values(WarehouseStatus) as string[]).includes(String(status))
+          ? (status as WarehouseStatus)
           : WarehouseStatus.ACTIVE;
 
       const newWarehouse = await prisma.warehouse.create({
         data: {
-          name,
-          location,
+          name: String(name),
+          location: String(location),
           capacity: parsedCapacity,
           status: warehouseStatus,
           isActive: isActive !== undefined ? Boolean(isActive) : warehouseStatus === WarehouseStatus.ACTIVE,
@@ -115,6 +118,149 @@ router.post(
     } catch (error) {
       console.error('Error registering warehouse:', error);
       res.status(500).json({ error: 'Failed to register warehouse' });
+    }
+  }
+);
+
+// PUT /api/warehouses/:id - Update warehouse configuration & capacity (ADMIN & OPERATIONS_MANAGER)
+router.put(
+  '/:id',
+  authenticateToken,
+  requireRole([Role.ADMIN, Role.OPERATIONS_MANAGER]),
+  async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      const { name, location, capacity, status, isActive } = req.body;
+
+      const existingWarehouse = await prisma.warehouse.findUnique({
+        where: { id: id as string },
+      });
+
+      if (!existingWarehouse) {
+        res.status(404).json({ error: 'Warehouse not found' });
+        return;
+      }
+
+      const updateData: any = {};
+
+      if (name !== undefined) updateData.name = String(name);
+      if (location !== undefined) updateData.location = String(location);
+      if (capacity !== undefined) {
+        const parsedCapacity = Number(capacity);
+        if (isNaN(parsedCapacity) || parsedCapacity < 0) {
+          res
+            .status(400)
+            .json({ error: 'Operational capacity must be a non-negative number' });
+          return;
+        }
+        updateData.capacity = parsedCapacity;
+      }
+      if (status !== undefined && (Object.values(WarehouseStatus) as string[]).includes(String(status))) {
+        updateData.status = status as WarehouseStatus;
+        updateData.isActive = status === WarehouseStatus.ACTIVE;
+      }
+      if (isActive !== undefined) {
+        updateData.isActive = Boolean(isActive);
+      }
+
+      const updatedWarehouse = await prisma.warehouse.update({
+        where: { id: id as string },
+        data: updateData,
+        include: {
+          zones: true,
+        },
+      });
+
+      res.json({
+        message: 'Warehouse updated successfully',
+        warehouse: updatedWarehouse,
+      });
+    } catch (error) {
+      console.error('Error updating warehouse:', error);
+      res.status(500).json({ error: 'Failed to update warehouse' });
+    }
+  }
+);
+
+// POST /api/warehouses/:id/zones - Define a new zone for a warehouse (ADMIN, OPERATIONS_MANAGER, WAREHOUSE_SUPERVISOR)
+router.post(
+  '/:id/zones',
+  authenticateToken,
+  requireRole([Role.ADMIN, Role.OPERATIONS_MANAGER, Role.WAREHOUSE_SUPERVISOR]),
+  async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      const { name, code, type, capacity } = req.body;
+
+      if (!name || !code) {
+        res.status(400).json({ error: 'Zone name and code are required' });
+        return;
+      }
+
+      const existingWarehouse = await prisma.warehouse.findUnique({
+        where: { id: id as string },
+      });
+
+      if (!existingWarehouse) {
+        res.status(404).json({ error: 'Warehouse not found' });
+        return;
+      }
+
+      const zoneType: ZoneType =
+        type && (Object.values(ZoneType) as string[]).includes(String(type))
+          ? (type as ZoneType)
+          : ZoneType.STORAGE;
+
+      const parsedCapacity = capacity !== undefined ? Number(capacity) : 100;
+
+      const newZone = await prisma.warehouseZone.create({
+        data: {
+          warehouseId: id as string,
+          name: String(name),
+          code: String(code).toUpperCase(),
+          type: zoneType,
+          capacity: isNaN(parsedCapacity) ? 100 : parsedCapacity,
+        },
+      });
+
+      res.status(201).json({
+        message: 'Zone defined successfully',
+        zone: newZone,
+      });
+    } catch (error) {
+      console.error('Error defining warehouse zone:', error);
+      res.status(500).json({ error: 'Failed to define warehouse zone' });
+    }
+  }
+);
+
+// DELETE /api/warehouses/:id/zones/:zoneId - Remove a zone from a warehouse (ADMIN & OPERATIONS_MANAGER)
+router.delete(
+  '/:id/zones/:zoneId',
+  authenticateToken,
+  requireRole([Role.ADMIN, Role.OPERATIONS_MANAGER]),
+  async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      const zoneId = String(req.params.zoneId);
+
+      const zone = await prisma.warehouseZone.findUnique({
+        where: { id: zoneId as string },
+      });
+
+      if (!zone || zone.warehouseId !== id) {
+        res.status(404).json({ error: 'Zone not found for this warehouse' });
+        return;
+      }
+
+      await prisma.warehouseZone.delete({
+        where: { id: zoneId as string },
+      });
+
+      res.json({ message: 'Zone deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting warehouse zone:', error);
+      res.status(500).json({ error: 'Failed to delete warehouse zone' });
     }
   }
 );
