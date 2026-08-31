@@ -182,6 +182,37 @@ router.put(
   }
 );
 
+// PATCH /api/warehouses/:id/status - Quick status update (ACTIVE, INACTIVE, MAINTENANCE)
+router.patch('/:id/status', async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const { status } = req.body;
+
+    if (!status || !(Object.values(WarehouseStatus) as string[]).includes(String(status))) {
+      res.status(400).json({ error: 'Valid status is required (ACTIVE, INACTIVE, MAINTENANCE)' });
+      return;
+    }
+
+    const warehouseStatus = status as WarehouseStatus;
+    const updated = await prisma.warehouse.update({
+      where: { id },
+      data: {
+        status: warehouseStatus,
+        isActive: warehouseStatus === WarehouseStatus.ACTIVE,
+      },
+      include: { zones: true },
+    });
+
+    res.json({
+      message: 'Warehouse status updated successfully',
+      warehouse: updated,
+    });
+  } catch (error) {
+    console.error('Error patching warehouse status:', error);
+    res.status(500).json({ error: 'Failed to update warehouse status' });
+  }
+});
+
 // POST /api/warehouses/:id/zones - Define a new zone for a warehouse (ADMIN, OPERATIONS_MANAGER, WAREHOUSE_SUPERVISOR)
 router.post(
   '/:id/zones',

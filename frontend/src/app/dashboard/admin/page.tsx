@@ -90,6 +90,8 @@ export default function AdminDashboard() {
   const [newWhForm, setNewWhForm] = useState({ name: '', location: '', capacity: 500, status: 'ACTIVE' });
   const [selectedWhForZone, setSelectedWhForZone] = useState<WarehouseItem | null>(null);
   const [newZoneForm, setNewZoneForm] = useState({ name: '', code: '', type: 'PICKING', capacity: 100 });
+  const [selectedWhForEditStatus, setSelectedWhForEditStatus] = useState<WarehouseItem | null>(null);
+  const [statusToUpdate, setStatusToUpdate] = useState<string>('ACTIVE');
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -248,24 +250,32 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleToggleWarehouseStatus = async (wh: WarehouseItem) => {
-    const nextStatus = wh.status === 'ACTIVE' ? 'MAINTENANCE' : wh.status === 'MAINTENANCE' ? 'INACTIVE' : 'ACTIVE';
+  const handleUpdateWarehouseStatusDirect = async (whId: string, status: string, whName?: string) => {
     setActionLoading(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/warehouses/${wh.id}`, {
-        method: 'PUT',
+      const res = await fetch(`http://localhost:5000/api/warehouses/${whId}/status`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: nextStatus }),
+        body: JSON.stringify({ status }),
       });
       if (res.ok) {
-        showNotify('success', `${wh.name} status updated to ${nextStatus}`);
+        showNotify('success', `${whName || 'Warehouse'} status updated to ${status}`);
+        setSelectedWhForEditStatus(null);
         await fetchWarehouses();
+      } else {
+        const err = await res.json();
+        showNotify('error', err.error || 'Failed to update warehouse status');
       }
     } catch (err) {
-      showNotify('error', 'Failed to update warehouse status');
+      showNotify('error', 'Network error updating warehouse status');
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleToggleWarehouseStatus = async (wh: WarehouseItem) => {
+    const nextStatus = wh.status === 'ACTIVE' ? 'MAINTENANCE' : wh.status === 'MAINTENANCE' ? 'INACTIVE' : 'ACTIVE';
+    await handleUpdateWarehouseStatusDirect(wh.id, nextStatus, wh.name);
   };
 
   const handleAddZone = async (e: React.FormEvent) => {
@@ -668,12 +678,43 @@ export default function AdminDashboard() {
                         <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 0.2rem 0', color: '#0F172A' }}>{wh.name}</h3>
                         <div style={{ fontSize: '0.75rem', color: '#64748B' }}>📍 {wh.location}</div>
                       </div>
-                      <button
-                        onClick={() => handleToggleWarehouseStatus(wh)}
-                        style={{ backgroundColor: sBadge.bg, color: sBadge.text, border: `1px solid ${sBadge.border}`, padding: '0.2rem 0.55rem', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}
-                      >
-                        {wh.status}
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <span
+                          style={{
+                            backgroundColor: sBadge.bg,
+                            color: sBadge.text,
+                            border: `1px solid ${sBadge.border}`,
+                            padding: '0.25rem 0.55rem',
+                            borderRadius: '6px',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                          }}
+                        >
+                          ● {wh.status}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setSelectedWhForEditStatus(wh);
+                            setStatusToUpdate(wh.status);
+                          }}
+                          style={{
+                            backgroundColor: '#EFF6FF',
+                            border: '1px solid #BFDBFE',
+                            color: '#1D4ED8',
+                            padding: '0.25rem 0.6rem',
+                            borderRadius: '6px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                          }}
+                          title="Edit Warehouse Status"
+                        >
+                          ✏️ Edit Status
+                        </button>
+                      </div>
                     </div>
 
                     <div style={{ backgroundColor: '#F8FAFC', padding: '0.65rem 0.85rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
@@ -970,6 +1011,151 @@ export default function AdminDashboard() {
                 <button type="submit" disabled={actionLoading} style={{ padding: '0.6rem 1.25rem', borderRadius: '6px', backgroundColor: '#2563EB', border: 'none', color: '#FFFFFF', fontWeight: 700, cursor: 'pointer' }}>Save Zone</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Warehouse Status Modal */}
+      {selectedWhForEditStatus && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.6)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+            padding: '1.5rem',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '14px',
+              padding: '1.75rem',
+              width: '100%',
+              maxWidth: '480px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 0.2rem 0', color: '#0F172A' }}>
+                  ✏️ Edit Warehouse Status
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748B' }}>
+                  {selectedWhForEditStatus.name} ({selectedWhForEditStatus.location})
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedWhForEditStatus(null)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  backgroundColor: '#FEE2E2',
+                  border: '1px solid #FCA5A5',
+                  fontSize: '1rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  color: '#DC2626',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                title="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.5rem' }}>
+              {[
+                {
+                  value: 'ACTIVE',
+                  title: '🟢 ACTIVE (Operational)',
+                  desc: 'Facility is online, accepting incoming intake, active picking & live order dispatch.',
+                  bg: statusToUpdate === 'ACTIVE' ? '#ECFDF5' : '#F8FAFC',
+                  border: statusToUpdate === 'ACTIVE' ? '#10B981' : '#E2E8F0',
+                  color: '#065F46',
+                },
+                {
+                  value: 'MAINTENANCE',
+                  title: '🟡 MAINTENANCE (Offline / Servicing)',
+                  desc: 'Facility temporarily paused for equipment repairs, belt calibration, or system audit.',
+                  bg: statusToUpdate === 'MAINTENANCE' ? '#FEFCE8' : '#F8FAFC',
+                  border: statusToUpdate === 'MAINTENANCE' ? '#F59E0B' : '#E2E8F0',
+                  color: '#92400E',
+                },
+                {
+                  value: 'INACTIVE',
+                  title: '🔴 INACTIVE (Decommissioned)',
+                  desc: 'Facility closed or retired from the active order distribution network.',
+                  bg: statusToUpdate === 'INACTIVE' ? '#FEF2F2' : '#F8FAFC',
+                  border: statusToUpdate === 'INACTIVE' ? '#EF4444' : '#E2E8F0',
+                  color: '#991B1B',
+                },
+              ].map((opt) => (
+                <div
+                  key={opt.value}
+                  onClick={() => setStatusToUpdate(opt.value)}
+                  style={{
+                    backgroundColor: opt.bg,
+                    border: `2px solid ${opt.border}`,
+                    borderRadius: '10px',
+                    padding: '0.85rem 1rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: opt.color }}>
+                    {opt.title}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '0.2rem' }}>
+                    {opt.desc}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => setSelectedWhForEditStatus(null)}
+                style={{
+                  padding: '0.6rem 1.25rem',
+                  borderRadius: '6px',
+                  backgroundColor: '#F1F5F9',
+                  border: '1px solid #CBD5E1',
+                  color: '#475569',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => handleUpdateWarehouseStatusDirect(selectedWhForEditStatus.id, statusToUpdate, selectedWhForEditStatus.name)}
+                style={{
+                  padding: '0.6rem 1.4rem',
+                  borderRadius: '6px',
+                  backgroundColor: '#2563EB',
+                  border: 'none',
+                  color: '#FFFFFF',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(37,99,235,0.25)',
+                }}
+              >
+                {actionLoading ? 'Saving...' : 'Update Status'}
+              </button>
+            </div>
           </div>
         </div>
       )}
