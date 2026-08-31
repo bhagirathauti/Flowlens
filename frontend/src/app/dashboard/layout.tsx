@@ -1,31 +1,30 @@
 "use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect } from 'react';
+import AppShell from '../../components/AppShell';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/auth');
-    } else {
-      setLoading(false);
+    // If not logged in, auto-initialize demo session for seamless navigation
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        localStorage.setItem('token', 'demo-session-token');
+        localStorage.setItem(
+          'user',
+          JSON.stringify({
+            name: 'Sarah Connor',
+            email: 'ops@flowlens.com',
+            role: 'OPERATIONS_MANAGER',
+          })
+        );
+      }
     }
-  }, [router]);
-
-  if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading...</div>;
-  }
+  }, []);
 
   return (
-    <div className="dashboard-layout">
-      {/* Sidebar / Navigation could go here */}
-      <main style={{ padding: '2rem' }}>
-        {children}
-      </main>
-    </div>
+    <AppShell>
+      {children}
+    </AppShell>
   );
 }
