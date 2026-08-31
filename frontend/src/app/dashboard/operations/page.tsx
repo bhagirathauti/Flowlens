@@ -26,10 +26,31 @@ interface WorkflowMetrics {
   };
 }
 
+interface BottleneckAnalysis {
+  stage: string;
+  queueLength: number;
+  avgDurationMinutes: number;
+  severity: 'NORMAL' | 'WARNING' | 'CRITICAL';
+  diagnosticMessage: string;
+  recommendation: string;
+}
+
+interface BottlenecksResponse {
+  summary: {
+    totalStages: number;
+    criticalCount: number;
+    warningCount: number;
+    normalCount: number;
+  };
+  flaggedBottlenecks: BottleneckAnalysis[];
+  allStages: BottleneckAnalysis[];
+}
+
 export default function OperationsDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<{ name: string; email: string; role: string } | null>(null);
   const [metrics, setMetrics] = useState<WorkflowMetrics | null>(null);
+  const [bottlenecks, setBottlenecks] = useState<BottlenecksResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [warehouseFilter, setWarehouseFilter] = useState('ALL');
   const [errorMsg, setErrorMsg] = useState('');
@@ -43,22 +64,29 @@ export default function OperationsDashboard() {
         console.error(e);
       }
     }
-    fetchMetrics();
+    fetchData();
   }, [warehouseFilter]);
 
-  const fetchMetrics = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
       setErrorMsg('');
-      const res = await fetch(`http://localhost:5000/api/workflow/metrics?warehouse=${warehouseFilter}`);
-      if (res.ok) {
-        const data = await res.json();
-        setMetrics(data);
+
+      const [metricsRes, bottleneckRes] = await Promise.all([
+        fetch(`http://localhost:5000/api/workflow/metrics?warehouse=${warehouseFilter}`),
+        fetch(`http://localhost:5000/api/workflow/bottlenecks?warehouse=${warehouseFilter}`),
+      ]);
+
+      if (metricsRes.ok && bottleneckRes.ok) {
+        const metricsData = await metricsRes.json();
+        const bottleneckData = await bottleneckRes.json();
+        setMetrics(metricsData);
+        setBottlenecks(bottleneckData);
       } else {
-        setErrorMsg('Failed to load workflow metrics');
+        setErrorMsg('Failed to load telemetry and bottleneck diagnostics');
       }
     } catch (err) {
-      console.error('Error fetching metrics:', err);
+      console.error('Error fetching data:', err);
       setErrorMsg('Network error connecting to telemetry server');
     } finally {
       setLoading(false);
@@ -100,12 +128,12 @@ export default function OperationsDashboard() {
                 width: '12px',
                 height: '12px',
                 borderRadius: '50%',
-                backgroundColor: '#3B82F6',
+                backgroundColor: '#EF4444',
                 display: 'inline-block',
               }}
             ></span>
             <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-              FR-4 Operations & Workflow Monitor
+              FR-4 & FR-5 Operations & Bottleneck Intelligence
             </h1>
           </div>
           <p style={{ color: '#64748B', margin: '0.25rem 0 0 1.5rem', fontSize: '0.95rem' }}>
@@ -129,7 +157,7 @@ export default function OperationsDashboard() {
             🏢 Warehouses
           </button>
           <button
-            onClick={fetchMetrics}
+            onClick={fetchData}
             style={{
               backgroundColor: '#2563EB',
               color: '#FFFFFF',
@@ -141,7 +169,7 @@ export default function OperationsDashboard() {
               boxShadow: '0 2px 4px rgba(37,99,235,0.2)',
             }}
           >
-            🔄 Refresh Telemetry
+            🔄 Run Bottleneck Audit
           </button>
           <button
             onClick={handleLogout}
@@ -178,7 +206,7 @@ export default function OperationsDashboard() {
       {/* Filter Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1E293B', margin: 0 }}>
-          Real-Time Workflow Telemetry
+          Real-Time Workflow Telemetry & Bottleneck Diagnostics
         </h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>Filter Hub:</label>
@@ -204,10 +232,111 @@ export default function OperationsDashboard() {
 
       {loading ? (
         <div style={{ padding: '4rem', textAlign: 'center', color: '#64748B' }}>
-          Computing stage durations, queue lengths, and SLA delay telemetry...
+          Executing automated bottleneck detection engine and stage telemetry...
         </div>
-      ) : metrics ? (
+      ) : metrics && bottlenecks ? (
         <div>
+          {/* FR-5 Automated Bottleneck Diagnostic Alert Banner */}
+          <div style={{ marginBottom: '2rem' }}>
+            {bottlenecks.summary.criticalCount > 0 ? (
+              <div
+                style={{
+                  backgroundColor: '#FEF2F2',
+                  border: '2px solid #EF4444',
+                  borderRadius: '12px',
+                  padding: '1.25rem',
+                  boxShadow: '0 4px 6px rgba(239, 68, 68, 0.1)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '1.25rem' }}>🚨</span>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#991B1B' }}>
+                    FR-5 Critical Bottleneck Alert Detected ({bottlenecks.summary.criticalCount} Critical, {bottlenecks.summary.warningCount} Warning)
+                  </h3>
+                </div>
+                <div style={{ display: 'grid', gap: '0.75rem', marginTop: '0.75rem' }}>
+                  {bottlenecks.flaggedBottlenecks.map((b) => (
+                    <div
+                      key={b.stage}
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid #FCA5A5',
+                        borderRadius: '8px',
+                        padding: '0.75rem 1rem',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div>
+                        <strong style={{ color: '#7F1D1D', fontSize: '0.9rem' }}>
+                          {stageDisplayNames[b.stage]?.icon} {stageDisplayNames[b.stage]?.label}:
+                        </strong>{' '}
+                        <span style={{ color: '#374151', fontSize: '0.875rem' }}>{b.diagnosticMessage}</span>
+                        <div style={{ color: '#2563EB', fontSize: '0.8rem', marginTop: '0.2rem', fontWeight: 600 }}>
+                          💡 Recommendation: {b.recommendation}
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          backgroundColor: b.severity === 'CRITICAL' ? '#EF4444' : '#F59E0B',
+                          color: '#FFFFFF',
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '12px',
+                          fontSize: '0.75rem',
+                          fontWeight: 800,
+                        }}
+                      >
+                        {b.severity}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : bottlenecks.summary.warningCount > 0 ? (
+              <div
+                style={{
+                  backgroundColor: '#FFFBEB',
+                  border: '2px solid #F59E0B',
+                  borderRadius: '12px',
+                  padding: '1.25rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#92400E' }}>
+                    FR-5 Workflow Warning ({bottlenecks.summary.warningCount} Stage Delays Detected)
+                  </h3>
+                </div>
+                <div style={{ marginTop: '0.5rem', color: '#78350F', fontSize: '0.9rem' }}>
+                  Stage queues are building up. Monitor staff assignments to prevent critical SLA breaches.
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  backgroundColor: '#ECFDF5',
+                  border: '1.5px solid #10B981',
+                  borderRadius: '12px',
+                  padding: '1rem 1.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>✅</span>
+                <div>
+                  <strong style={{ color: '#065F46', fontSize: '0.95rem' }}>
+                    FR-5 Bottleneck Detection Engine: All Workflow Stages Normal
+                  </strong>
+                  <div style={{ color: '#047857', fontSize: '0.825rem' }}>
+                    Queue lengths and processing durations across all 6 stages are operating within normal SLA limits.
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Summary KPI Cards */}
           <div
             style={{
@@ -230,7 +359,7 @@ export default function OperationsDashboard() {
               <div style={{ fontSize: '2rem', fontWeight: 800, color: '#2563EB', marginTop: '0.5rem' }}>
                 {metrics.totalOrders}
               </div>
-              <div style={{ color: '#10B981', fontSize: '0.8rem', marginTop: '0.25rem' }}>● Tracking active workflow</div>
+              <div style={{ color: '#10B981', fontSize: '0.8rem', marginTop: '0.25rem' }}>● Live tracking active</div>
             </div>
 
             <div
@@ -242,19 +371,25 @@ export default function OperationsDashboard() {
                 boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
               }}
             >
-              <div style={{ color: '#64748B', fontSize: '0.875rem', fontWeight: 500 }}>Processing Delays / At Risk</div>
+              <div style={{ color: '#64748B', fontSize: '0.875rem', fontWeight: 500 }}>Detected Bottlenecks</div>
               <div
                 style={{
                   fontSize: '2rem',
                   fontWeight: 800,
-                  color: metrics.delays.totalDelayed > 0 ? '#EF4444' : '#10B981',
+                  color: bottlenecks.summary.criticalCount > 0 ? '#EF4444' : '#F59E0B',
                   marginTop: '0.5rem',
                 }}
               >
-                {metrics.delays.totalDelayed} <span style={{ fontSize: '1rem', fontWeight: 500 }}>orders</span>
+                {bottlenecks.flaggedBottlenecks.length} <span style={{ fontSize: '1rem', fontWeight: 500 }}>stages</span>
               </div>
-              <div style={{ color: metrics.delays.totalDelayed > 0 ? '#EF4444' : '#10B981', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                {metrics.delays.totalDelayed > 0 ? '⚠️ Action Required' : '✓ SLA Target Normal'}
+              <div
+                style={{
+                  color: bottlenecks.flaggedBottlenecks.length > 0 ? '#EF4444' : '#10B981',
+                  fontSize: '0.8rem',
+                  marginTop: '0.25rem',
+                }}
+              >
+                {bottlenecks.flaggedBottlenecks.length > 0 ? '⚠️ High Queue / SLA Delay' : '✓ Flow Optimal'}
               </div>
             </div>
 
@@ -271,55 +406,74 @@ export default function OperationsDashboard() {
               <div style={{ fontSize: '2rem', fontWeight: 800, color: '#7C3AED', marginTop: '0.5rem' }}>
                 {metrics.employeeWorkloads.length}
               </div>
-              <div style={{ color: '#64748B', fontSize: '0.8rem', marginTop: '0.25rem' }}>Handling active shifts</div>
+              <div style={{ color: '#64748B', fontSize: '0.8rem', marginTop: '0.25rem' }}>Assigned across stages</div>
             </div>
           </div>
 
-          {/* Workflow Stage Pipeline Visualizer */}
+          {/* Workflow Stage Pipeline Grid with Bottleneck Severity Badges */}
           <div style={{ marginBottom: '2.5rem' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1E293B', marginBottom: '1rem' }}>
-              Workflow Stage Queues & Average Processing Duration
+              Workflow Stage Queues & Severity Badges
             </h3>
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
                 gap: '1rem',
               }}
             >
-              {Object.keys(stageDisplayNames).map((stageKey) => {
+              {bottlenecks.allStages.map((stageAnalysis) => {
+                const stageKey = stageAnalysis.stage;
                 const stageInfo = stageDisplayNames[stageKey];
-                const queueCount = metrics.queueLengths[stageKey] || 0;
-                const avgDuration = metrics.averageStageDurations[stageKey] || 0;
-                const isHighQueue = queueCount > 5;
+                const isCritical = stageAnalysis.severity === 'CRITICAL';
+                const isWarning = stageAnalysis.severity === 'WARNING';
 
                 return (
                   <div
                     key={stageKey}
                     style={{
                       backgroundColor: '#FFFFFF',
-                      border: `2px solid ${isHighQueue ? '#F59E0B' : '#E2E8F0'}`,
+                      border: `2px solid ${isCritical ? '#EF4444' : isWarning ? '#F59E0B' : '#E2E8F0'}`,
                       borderRadius: '12px',
                       padding: '1.25rem',
                       boxShadow: '0 2px 4px rgba(0,0,0,0.03)',
+                      position: 'relative',
                     }}
                   >
-                    <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{stageInfo?.icon}</div>
-                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1E293B' }}>{stageInfo?.label}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontSize: '1.5rem' }}>{stageInfo?.icon}</div>
+                      <span
+                        style={{
+                          backgroundColor: isCritical ? '#FEE2E2' : isWarning ? '#FEF3C7' : '#D1FAE5',
+                          color: isCritical ? '#991B1B' : isWarning ? '#92400E' : '#065F46',
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '10px',
+                          fontSize: '0.65rem',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {stageAnalysis.severity}
+                      </span>
+                    </div>
+
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1E293B', marginTop: '0.5rem' }}>
+                      {stageInfo?.label}
+                    </div>
 
                     <div style={{ marginTop: '1rem' }}>
                       <div style={{ color: '#64748B', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600 }}>
                         Queue Length
                       </div>
-                      <div style={{ fontSize: '1.6rem', fontWeight: 800, color: isHighQueue ? '#D97706' : '#0F172A' }}>
-                        {queueCount} <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>orders</span>
+                      <div style={{ fontSize: '1.6rem', fontWeight: 800, color: isCritical ? '#DC2626' : isWarning ? '#D97706' : '#0F172A' }}>
+                        {stageAnalysis.queueLength} <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>orders</span>
                       </div>
                     </div>
 
                     <div style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px dashed #E2E8F0' }}>
                       <div style={{ color: '#64748B', fontSize: '0.75rem', fontWeight: 600 }}>Avg Stage Duration</div>
                       <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#2563EB', marginTop: '0.15rem' }}>
-                        ⏱️ {avgDuration} mins
+                        ⏱️ {stageAnalysis.avgDurationMinutes} mins
                       </div>
                     </div>
                   </div>
@@ -331,7 +485,7 @@ export default function OperationsDashboard() {
           {/* Processing Delays Table */}
           <div style={{ marginBottom: '2.5rem' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1E293B', marginBottom: '1rem' }}>
-              Processing Delays & Waiting Time Alerts ({metrics.delays.totalDelayed})
+              Order Delay Telemetry ({metrics.delays.totalDelayed})
             </h3>
             {metrics.delays.delayedOrders.length === 0 ? (
               <div
@@ -344,7 +498,7 @@ export default function OperationsDashboard() {
                   color: '#64748B',
                 }}
               >
-                ✓ No processing delays or SLA breaches detected. All workflow stages running on schedule.
+                ✓ No individual order processing delays or SLA breaches detected.
               </div>
             ) : (
               <div
